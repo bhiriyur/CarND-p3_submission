@@ -19,65 +19,108 @@ The main model architecture is derived from the NVIDIA model with some variation
 was also evaluated but eventually the former model was chosen as it performed better in some initial tests.
 Nonlinearities were introduced using Exponential ReLU (ELU) activations on various layers.
 
-The architecture is shown below:
+*Update*: After some comments from the first reviewer, I went back to the model and made some updates
+making it much simpler. Specifically a MaxPooling2D layer was added after 3'rd Conv2D layer (it was
+missing, though I had mentioned previously that it existed). This reduced the size of the last
+Conv2D layer significantly and all enabled removing one fully connected layer as there was enough "room"
+to taper down to the output layer with just three dense layers. Also a dropout layer was added between
+the last Conv2D layer and the Flatten layer to reduce overfitting. In the end, this architechture
+has about 520K parameters.
+
+The final architecture is shown below:
 ```text
-LAYER: Lambda Normalization           (None, 200, 200, 3)
-LAYER: Conv2D-24-3x3-s2               (None, 100, 100, 24)
-LAYER: Maxpool2D                      (None, 50, 50, 24)
-LAYER: Conv2D-36-3x3-s2               (None, 25, 25, 36)
-LAYER: Maxpool2D                      (None, 12, 12, 36)
-LAYER: Conv2D-48-3x3-s1               (None, 12, 12, 48)
-LAYER: Maxpool2D                      (None, 12, 12, 48)
-LAYER: Conv2D-64-3x3-s1               (None, 10, 10, 64)
-LAYER: Flatten + Dropout(0.5)         (None, 6400)
-LAYER: FullyConnected + Dropout(0.5)  (None, 500)
-LAYER: FullyConnected + Dropout(0.5)  (None, 200)
-LAYER: FullyConnected                 (None, 30)
-LAYER: OUTPUT                         (None, 1)
+___________________________________________________________________________________________________
+Layer (type)                     Output Shape          Param #     Connected to
+====================================================================================================
+lambda_1 (Lambda)                (None, 200, 200, 3)   0           lambda_input_1[0][0]
+____________________________________________________________________________________________________
+convolution2d_1 (Convolution2D)  (None, 100, 100, 24)  672         lambda_1[0][0]
+____________________________________________________________________________________________________
+maxpooling2d_1 (MaxPooling2D)    (None, 50, 50, 24)    0           convolution2d_1[0][0]
+____________________________________________________________________________________________________
+convolution2d_2 (Convolution2D)  (None, 25, 25, 36)    7812        maxpooling2d_1[0][0]
+____________________________________________________________________________________________________
+maxpooling2d_2 (MaxPooling2D)    (None, 12, 12, 36)    0           convolution2d_2[0][0]
+____________________________________________________________________________________________________
+convolution2d_3 (Convolution2D)  (None, 12, 12, 48)    15600       maxpooling2d_2[0][0]
+____________________________________________________________________________________________________
+maxpooling2d_3 (MaxPooling2D)    (None, 6, 6, 48)      0           convolution2d_3[0][0]
+____________________________________________________________________________________________________
+convolution2d_4 (Convolution2D)  (None, 6, 6, 64)      27712       maxpooling2d_3[0][0]
+____________________________________________________________________________________________________
+dropout_1 (Dropout)              (None, 6, 6, 64)      0           convolution2d_4[0][0]
+____________________________________________________________________________________________________
+flatten_1 (Flatten)              (None, 2304)          0           dropout_1[0][0]
+____________________________________________________________________________________________________
+dropout_2 (Dropout)              (None, 2304)          0           flatten_1[0][0]
+____________________________________________________________________________________________________
+dense_1 (Dense)                  (None, 200)           461000      dropout_2[0][0]
+____________________________________________________________________________________________________
+dropout_3 (Dropout)              (None, 200)           0           dense_1[0][0]
+____________________________________________________________________________________________________
+dense_2 (Dense)                  (None, 30)            6030        dropout_3[0][0]
+____________________________________________________________________________________________________
+dense_3 (Dense)                  (None, 1)             31          dense_2[0][0]
+====================================================================================================
+Total params: 518,857
+Trainable params: 518,857
+Non-trainable params: 0
+____________________________________________________________________________________________________
 ```
-The actual code (after removing print statements/comments)
+
+The actual code function that builds the network:
 ```python
 def nvidia():
-    """A variant of the nvidia model"""
-
+    """
+    A variant of the nvidia model
+    """
     model = Sequential()
 
     # Takes image after crop and reshape
     img_shape = (200, 200, 3)
 
+    # Normalization
     model.add(Lambda(lambda x: x/127.5 - 1.0,
                      input_shape=img_shape,
                      output_shape=img_shape))
+    print("LAYER: {:30s} {}".format('Normalization',model.layers[-1].output_shape))
 
-    model.add(Convolution2D(24,3,3,border_mode='same',
-              activation='elu',subsample=(2,2)))
+    # Layer 1
+    model.add(Convolution2D(24,3,3,border_mode='same',activation='elu',subsample=(2,2)))
     model.add(MaxPooling2D())
 
-    model.add(Convolution2D(36,3,3,border_mode='same',
-              activation='elu',subsample=(2,2)))
+    # Layer 2
+    model.add(Convolution2D(36,3,3,border_mode='same',activation='elu',subsample=(2,2)))
     model.add(MaxPooling2D())
 
-    model.add(Convolution2D(48,3,3,border_mode='same',
-              activation='elu',subsample=(1,1)))
+    # Layer 3
+    model.add(Convolution2D(48,3,3,border_mode='same',activation='elu',subsample=(1,1)))
+    model.add(MaxPooling2D())
 
-    model.add(Convolution2D(64,3,3,activation='elu',
-              subsample=(1,1)))
 
+    # Layer 4
+    model.add(Convolution2D(64,3,3,border_mode='same',activation='elu',subsample=(1,1)))
+    model.add(Dropout(0.5))
+
+    # Layer 5
     model.add(Flatten())
     model.add(Dropout(0.5))
 
-    model.add(Dense(500,activation='elu'))
-    model.add(Dropout(0.5))
 
+    # Layer 7
     model.add(Dense(200,activation='elu'))
     model.add(Dropout(0.5))
 
+    # Layer 8
     model.add(Dense(30,activation='elu'))
+
+    # Output
     model.add(Dense(1, activation='linear'))
 
-    adamopt = Adam(lr=0.0001)
-    model.compile(loss='mse',optimizer=adamopt)
 
+    # Minimization
+    adamopt = Adam(lr=LEARNING_RATE)
+    model.compile(loss='mse',optimizer=adamopt)
     return model
 ```
 
@@ -187,12 +230,105 @@ def data_generator(A,BATCH_SIZE):
 
 ### Image transformations for augmenting data
 To augment the dataset, certain random transformations were applied to the provided images. These include:
-- Using left/right cameras instead of center with steering offsets of 0.25/-0.25
+- Using left/right cameras instead of center with steering offsets of 0.2/-0.2
 - Flipping vertically (this was originally done randomly, then done epoch-by-epoch)
 - Random Horizontal shift (with steering offset factor of 0.5)
 
+### Another Idea (to try in future)
+Here's an idea that I haven't tried but could hold promise based on a paper I read: (http://www.cs.toronto.edu/~kriz/imagenet_classification_with_deep_convolutional.pdf)
+Instead of cropping of the top of the image, I wonder if it makes sense to replace that portion with white
+noise as follows:
+```
+	crop_shape = img.shape
+	crop_shape[0] = 70
+	img[:70,:,:] = np.random.randint(255,crop_shape)
+```
+
+This would maintain the original image-steering correlation, while introducing sufficient variation in the
+image to prevent excessive overfitting. Also this is simple enough to be added to the generator to provide
+an augmented dataset of any desired size!
+
+## Training protocol
+*Note*: Based on the first reviewer's comments, I present below the training protocol I used. I thank the reviewer for
+providing useful comments that helped me add the ModelCheckpoint (and EarlyStopping) callbacks.
+
+As mentioned before, I basically have three data-sampling modes:
+- 0: Use the entire training dataset (this mode was not used)
+- 1: **Balanced** dataset that provides more-or-less symmetric histogram of steering values (symmetric about 0).
+- 2: **Uniform** dataset that provides more-or-less uniform histogram of steering values. 
+
+I can change the mode used for a training session based on an input argument. Here's the training function used:
+```python
+def train(FILE='model.h5',load_file=None):
+    """
+    Build and train the network
+    """
+    if load_file == None:
+        # Generate a new model
+        net = nvidia()
+    else:
+        # For retraining
+        net = load_model(load_file)
+
+    # Print summary
+    net.summary()
+    print("Looping {} times with  {} epochs/loop".format(NB_LOOPS,NB_EPOCHS))
+    print("Data mode = {}".format(DATA_MODE))
+
+    # Add checkpoint and early-stopping
+    filepath='w.{epoch:02d}-{val_loss:0.2f}.h5'
+    checkpointer = ModelCheckpoint(filepath,monitor='val_loss',verbose=1,save_best_only=True)
+    early_stopper = EarlyStopping(monitor='val_loss',min_delta=0.001, patience=3, verbose=1)
+
+
+    for i in range(NB_LOOPS):
+        A_train,A_val = read_data(DATA_MODE,N_VAL)
+        xval,yval = val_data(A_val)
+
+        print("Number of examples available = {}".format(A_train.shape[0]))
+        print("Batch size = {}".format(BATCH_SIZE))
+        print("Samples per epoch = {}".format(N_SAMPLE))
+        print("Number of validation samples = {}".format(N_VAL))
+
+
+        T = data_generator(A_train,BATCH_SIZE)
+        net.fit_generator(T, samples_per_epoch=N_SAMPLE, nb_epoch=NB_EPOCHS,
+                          validation_data=(xval,yval), nb_val_samples=N_VAL,
+                          callbacks=[checkpointer, early_stopper])
+
+        evaluate(net)
+
+    net.save(FILE)
+    K.clear_session()
+    return net
+
+```
+As can be seen above, the training function can load a previous checkpoint and restart the training with
+a new dataset if need be. I also use an outer loop around epochs so that I can pick up samples of training
+data (that matches the data mode I have specified). 
+
+My training was done in batches. I initially used 25600 samples (from the augmented-data generator) and ran
+about 10 epochs. This was done with data-mode = 1 that provided a balanced dataset that was still dominated
+by low steering angles (the second histogram shown above). When this model was checked, I noticed that it 
+wasn't doing so well on the sharp curves. Then an retrained the above model with data-mode = 2 (third histogram)
+that provided more training for sharp curves. Since this dataset had fewer images, I used a smalled epoch
+size (~ 5000) and trained for a few epochs until the validation values stabilized. The actual values of the
+validation is not relevant because it is dependant on the size of the validation dataset. 
+This helped the model learn how to take curves (had to be successively improved for some of the tricky curves)
+but it also made the car weave left-and-right on the straights. This was softened by training again for some
+epochs with data-mode = 1 again. Finally I had a version of the model (caveats mentioned below) that was able
+to take endless laps on track 1. The video and the caveats are provided below.
+
+
 ## Performance on Track 1
-Here's a link to the video I recorded showing Track 1 performance:
+Here's a link to the video I recorded showing Track 1 performance. 
+
+*Update*: Note that this was recorded on my desktop with only an Intel Xeon CPU (~3GHz clock speed) with 
+no GPU. The graphics setting on the simulater was set to **fantastic**. Also this video was recorded prior
+to the changes I discuss above. The calibration of the model seems
+to be appropriate for this machine/settings. The first reviewer was however not able to see the same behavior
+on his/her machine. I also tried the same model with **fastest** mode and the car didn't behave well. 
+I need to see if and how to make this model more robust to graphics settings and target computer.
 
 <a href="http://www.youtube.com/watch?feature=player_embedded&v=GEJsouYLAR0"
 target="_blank"><img src="http://img.youtube.com/vi/GEJsouYLAR0/0.jpg"
