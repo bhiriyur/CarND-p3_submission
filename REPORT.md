@@ -319,6 +319,10 @@ but it also made the car weave left-and-right on the straights. This was softene
 epochs with data-mode = 1 again. Finally I had a version of the model (caveats mentioned below) that was able
 to take endless laps on track 1. The video and the caveats are provided below.
 
+An image showing the training progress with train/val loss is shown below:
+
+<center><img src="./images/training.png" alt="Training" style="width: 400px;"/></center>
+
 
 ## Performance on Track 1
 Here's a link to the video I recorded showing Track 1 performance. 
