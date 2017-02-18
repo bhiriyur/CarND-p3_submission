@@ -313,7 +313,11 @@ by low steering angles (the second histogram shown above). When this model was c
 wasn't doing so well on the sharp curves. Then an retrained the above model with data-mode = 2 (third histogram)
 that provided more training for sharp curves. Since this dataset had fewer images, I used a smalled epoch
 size (~ 5000) and trained for a few epochs until the validation values stabilized. The actual values of the
-validation is not relevant because it is dependant on the size of the validation dataset. 
+validation is not relevant because it is dependant on the size of the validation dataset. A graphical look of
+the validation results were more helpful (e.g. as shown in the plot below of steering angles prediction vs. actual)
+
+<center><img src="./images/figure_6.png" alt="Validation performance" style="width: 400px;"/></center>
+
 This helped the model learn how to take curves (had to be successively improved for some of the tricky curves)
 but it also made the car weave left-and-right on the straights. This was softened by training again for some
 epochs with data-mode = 1 again. Finally I had a version of the model (caveats mentioned below) that was able
@@ -322,7 +326,6 @@ to take endless laps on track 1. The video and the caveats are provided below.
 An image showing the training progress with train/val loss is shown below:
 
 <center><img src="./images/training.png" alt="Training" style="width: 400px;"/></center>
-
 
 ## Performance on Track 1
 Here's a link to the video I recorded showing Track 1 performance. 
@@ -338,6 +341,16 @@ I need to see if and how to make this model more robust to graphics settings and
 target="_blank"><img src="http://img.youtube.com/vi/GEJsouYLAR0/0.jpg"
 alt="Track 1 Performance" width="480" height="360" border="10" /></a>
 
+*Update2*: Below I present the performance with the simpler model and training protocol I presented above.
+This is the same version of the model that I have saved in this submission. The performance is much better
+at a higher throttle of 0.2 (~ 23 mph consistently) and with a graphics mode of **fastest**. Here's the
+YouTube video of this performance.
+
+<a href="http://www.youtube.com/watch?feature=player_embedded&v=tCi6JtVAbMs"
+target="_blank"><img src="http://img.youtube.com/vi/tCi6JtVAbMs/0.jpg"
+alt="Track 1 Performance - version 2" width="480" height="360" border="10" /></a>
+
+
 ## Thoughts and future directions
 Getting this to work took a lot of time and this is still far from over! I found that the car is stable
  only with a throttle of 0.1 and I can't get it to work fully with a higher throttle as I have seen others
@@ -349,4 +362,5 @@ Getting this to work took a lot of time and this is still far from over! I found
   - Look at L2 regularization and associated hyperparameters
   - Add speed as an input quantity and throttle as output quantity on the model
   - Image augmentations with shadow/darkening that may help for track 2 (Ref: Vivek Yadav's [Post](https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9#.s1ceth5ks))
+  - Image augmentations with a random white-noise in the crop region
 
